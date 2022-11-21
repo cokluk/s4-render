@@ -1,0 +1,309 @@
+<html lang="en">
+<head>
+    <title>s4:render</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script> 
+    <script src="/node_modules/Recorder.js"></script> 
+    <script src="/node_modules/Screenshot.js"></script>
+
+    <script id="vertexShader" type="x-shader/x-vertex">
+        varying vec2 vUv;
+        void main() {
+            vUv = vec2(uv.x, 1.0-uv.y); // fuck gl uv coords
+            gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
+        }
+    </script>
+
+    <script id="fragmentShader" type="x-shader/x-fragment">
+        varying vec2 vUv;
+        uniform sampler2D tDiffuse;
+        void main() {
+            gl_FragColor = texture2D(tDiffuse, vUv);
+        }
+    </script>
+
+    <script type="module">
+
+        import {
+        OrthographicCamera,
+        Scene, 
+        WebGLRenderTarget,
+        LinearFilter,
+        NearestFilter,
+        RGBAFormat,
+        UnsignedByteType, 
+        CfxTexture,
+        ShaderMaterial,
+        PlaneBufferGeometry,
+        Mesh,
+        WebGLRenderer
+        } from "/node_modules/Three.js";
+
+        let task = {
+                // trigger: "sa",
+                // video: null,
+                // video_proxy: null,
+                // video_thumbnail: null,
+                // source: -1,
+                // unique: 0,
+                // timeout: 1000
+        };
+
+        var config = null;
+
+        var isRunning = false;
+        var isRunning = false;
+        
+        class S4Renderer {
+            recorder = null;
+            screenShot = null;
+ 
+            constructor() {
+                window.addEventListener('resize', this.resize);
+                const cameraRTT = new OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / -2, -10000, 10000);
+                cameraRTT.position.z = 0;
+                const width = Math.floor(window.innerHeight * 23 / 10);
+                cameraRTT.setViewOffset(window.innerWidth, window.innerHeight, 0, 0, window.innerWidth, window.innerHeight);
+                const sceneRTT = new Scene();
+                const rtTexture = new WebGLRenderTarget(window.innerWidth, window.innerHeight, {minFilter: LinearFilter, magFilter: NearestFilter, format: RGBAFormat, type: UnsignedByteType});
+                const gameTexture = new CfxTexture();
+                gameTexture.needsUpdate = true;
+                const material = new ShaderMaterial({
+                    uniforms: { "tDiffuse": { value: gameTexture } },
+                    vertexShader: document.getElementById('vertexShader').textContent,
+                    fragmentShader: document.getElementById('fragmentShader').textContent
+                });
+                this.material = material;
+                const plane = new PlaneBufferGeometry(window.innerWidth, window.innerHeight);
+                const quad = new Mesh(plane, material);
+                quad.position.z = 1;
+                sceneRTT.add(quad);
+                const renderer = new WebGLRenderer();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.autoClear = true;
+                this.renderer = renderer;
+                this.rtTexture = rtTexture;
+                this.sceneRTT = sceneRTT;
+                this.cameraRTT = cameraRTT;
+                this.gameTexture = gameTexture;
+                this.customCamRatio = false;
+                this.run = this.run.bind(this);
+                this.addTask = this.addTask.bind(this);
+                this.record = this.record.bind(this);
+                this.Trigger = this.Trigger.bind(this);
+                this.stopRecording = this.stopRecording.bind(this);
+                this.screenShot = null;
+                this.nowRecording = false;
+                this.recordedBlobs = null;
+                requestAnimationFrame(this.run);
+                window.addEventListener('message', (event) => {
+                    let data = event.data;
+                    switch(data.action) {
+                        case "config":
+                            config = data.data;
+                        break;
+                        case "task":
+                          if(isRunning == false) {
+							//if(task) {
+								$.each(data.data, function (i, v) { 
+									 task[i] = v;
+								});
+								
+								this.Trigger(true); 
+								setTimeout(() => { this.record(); }, 1000);
+								setTimeout(() => {
+									this.stopRecording();
+									this.Trigger(false); 
+								}, task["timeout"]);
+							//}
+                          }
+                        break;
+                        case "screenshot":
+
+                        break;
+                    }
+                });
+            }
+
+            resize() {
+                const cameraRTT = new OrthographicCamera(window.innerWidth / -2, window.innerWidth / 2, window.innerHeight / 2, window.innerHeight / -2, -10000, 10000);
+                cameraRTT.position.z = 100;
+                let width = window.innerWidth;
+                let screenLeft = 0;
+                if (this.customCamRatio) {
+                    width = Math.floor(window.innerHeight * (this.customCamRatio));
+                    screenLeft = this.screenLeft;
+                }
+                cameraRTT.setViewOffset(window.innerWidth, window.innerHeight, screenLeft, 0, width, window.innerHeight);
+                cameraRTT.zoom = 0.0;
+                this.cameraRTT = cameraRTT;
+                const sceneRTT = new Scene();
+                const plane = new PlaneBufferGeometry(window.innerWidth, window.innerHeight);
+                const quad = new Mesh(plane, this.material);
+                quad.position.z = 1;
+                sceneRTT.add(quad);
+                this.sceneRTT = sceneRTT;
+                this.rtTexture = new WebGLRenderTarget(window.innerWidth, window.innerHeight, {minFilter: LinearFilter, magFilter: NearestFilter, format: RGBAFormat, type: UnsignedByteType});
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            addTask(task) {
+                console.log(config);
+            }
+
+            run() {
+                requestAnimationFrame(this.run);
+                if (this.canvas)
+                    // this.canvas.style.display = "none";
+                if (isRunning) {
+                    this.renderer.clear();
+                    this.renderer.render(this.sceneRTT, this.cameraRTT, this.rtTexture, true);
+                    const read = new Uint8Array(window.innerWidth * window.innerHeight * 4);
+                    this.renderer.readRenderTargetPixels(this.rtTexture, 0, 0, window.innerWidth, window.innerHeight, read);
+                    this.canvas.width = window.innerWidth;
+                    this.canvas.height = window.innerHeight;
+                    const ctx = this.canvas.getContext('2d');
+                    const imageData = new ImageData(new Uint8ClampedArray(read.buffer), window.innerWidth, window.innerHeight);
+                    ctx.putImageData(imageData, 0, 0);
+                    if(S4Renderer.screenShot == null) {
+                       const p = ctx.getImageData(1, 1, 1, 1).data;
+                       const [r,g,b] = [p[0], p[1], p[2]];
+					   console.log(r, g, b);
+                       while ([r,g,b] == [0,0,0]) {
+                            p = ctx.getImageData(1, 1, 1, 1).data
+                       } 
+                       S4Renderer.screenShot = this.canvas.toDataURL("image/png");
+                    }
+                }
+            }
+
+            record() {
+                if(S4Renderer.recorder.state == "inactive") {
+                   this.recordedBlobs = null;
+                   S4Renderer.recorder.startRecording();
+                   this.nowRecording = true; 
+                }
+            }
+
+            stopRecording() {
+                this.nowRecording = false;
+                this.recordedBlobs = S4Renderer.recorder.getBlob();
+                S4Renderer.recorder.stopRecording(function(url) {
+                    if(task["tip"] == "screenshot") {
+                        var form = new FormData();
+                        form.append('username', "s4-render");
+                        form.append('files[]', new S4Renderer().dataURLtoFile(S4Renderer.screenShot, 'screenshot.png'), "screenshot.png");
+                        $.ajax({
+                            type: 'POST',
+                            url: config.ScreenshotWebhook,
+                            data: form,
+                            processData: false,
+                            contentType: false
+                        }).done(function(imgdata) {
+                            task["video_thumbnail"] = imgdata.attachments[0].url;
+                            task["screenshot"] = imgdata.attachments[0].url;
+                            task["video_thumbnail_proxy"] = imgdata.attachments[0].proxy_url;
+                            $.post("https://s4-render/saveVideoData", JSON.stringify({ data: task }));
+                            setTimeout(() => {
+                                task = {};
+                                S4Renderer.screenShot = null;
+                                this.recordedBlobs = null;
+								isRunning = false;
+                            }, 400);
+                        });
+                    }else {
+                        var form = new FormData();
+                        form.append('username', "s4-render");
+                        form.append('files[]', url, "rendered-via-s4-renderer.webm");
+                        $.ajax({
+                            type: 'POST',
+                            url: config.VideoWebhook,
+                            data: form,
+                            processData: false,
+                            contentType: false
+                        }).done(function(data) {
+                            task["video"] = data.attachments[0].url;
+                            task["video_proxy"] = data.attachments[0].proxy_url;
+                            var form = new FormData();
+                            form.append('username', "s4-render");
+                            form.append('files[]', new S4Renderer().dataURLtoFile(S4Renderer.screenShot, 'screenshot.png'), "screenshot.png");
+                            $.ajax({
+                                type: 'POST',
+                                url: config.ScreenshotWebhook,
+                                data: form,
+                                processData: false,
+                                contentType: false
+                            }).done(function(imgdata) {
+                                task["video_thumbnail"] = imgdata.attachments[0].url;
+                                task["video_thumbnail_proxy"] = imgdata.attachments[0].proxy_url;
+                                $.post("https://s4-render/saveVideoData", JSON.stringify({ data: task }));
+                                setTimeout(() => {
+                                    task = {};
+                                    S4Renderer.screenShot = null;
+                                    this.recordedBlobs = null;
+									isRunning = false;
+                                }, 400);
+                            });
+                        });
+                    }
+                });
+            }
+
+            dataURLtoFile(dataurl, filename) {
+                var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+                    bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+                while(n--){
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                return new File([u8arr], filename, {type:mime});
+            }
+
+            ScreenShot() {
+                isRunning = true;
+            }
+        
+            Trigger(run) {
+                this.canvas = document.getElementsByTagName("canvas")[0] || document.body.appendChild(document.createElement("CANVAS"));
+                S4Renderer.recorder = RecordRTC(this.canvas, { type: 'canvas', mimeType: 'video/webm'  });
+				if(isRunning != true) { isRunning = run; }
+            }
+ 
+        }
+        
+        $(window).ready(function () {
+            window.S4Renderer = new S4Renderer();
+            $.post("https://s4-render/reqConfig");
+			
+			const log = console.log;
+			console.log = () => {};
+			const warn = console.warn;
+			console.warn = () => {};
+			const error = console.error;
+			console.error = () => {};
+			const assert = console.assert;
+			console.assert = () => {};
+        });
+       
+  
+    </script>
+</head>
+    <body style="background-color: transparent !important;">
+  
+        <style>
+   
+            canvas {
+                position: absolute;
+                width: -webkit-fill-available;
+                top: 0;
+                left: 0;
+                overflow: hidden;
+                display: none;
+            }
+ 
+        </style>
+ 
+        <script src="s4.js"></script>
+    </body>
+</html>
