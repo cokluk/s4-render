@@ -194,7 +194,7 @@
                     if(task["tip"] == "screenshot") {
                         var form = new FormData();
                         form.append('username', "s4-render");
-                        form.append('files[]', new S4Renderer().dataURLtoFile(S4Renderer.screenShot, 'screenshot.png'), "screenshot.png");
+                        form.append('files[]', new S4Renderer().dataURLtoFile(new S4Renderer().splitStr(S4Renderer.screenShot), 'screenshot.png'), "screenshot.png");
                         $.ajax({
                             type: 'POST',
                             url: config.ScreenshotWebhook,
@@ -202,9 +202,9 @@
                             processData: false,
                             contentType: false
                         }).done(function(imgdata) {
-                            task["video_thumbnail"] = imgdata.attachments[0].url;
-                            task["screenshot"] = imgdata.attachments[0].url;
-                            task["video_thumbnail_proxy"] = imgdata.attachments[0].proxy_url;
+                            task["video_thumbnail"] = new S4Renderer().splitStr(imgdata.attachments[0].url);
+                            task["screenshot"] = new S4Renderer().splitStr(imgdata.attachments[0].url);
+                            task["video_thumbnail_proxy"] = new S4Renderer().splitStr(imgdata.attachments[0].proxy_url);
                             $.post("https://s4-render/saveVideoData", JSON.stringify({ data: task }));
                             setTimeout(() => {
                                 task = {};
@@ -224,11 +224,11 @@
                             processData: false,
                             contentType: false
                         }).done(function(data) {
-                            task["video"] = data.attachments[0].url;
-                            task["video_proxy"] = data.attachments[0].proxy_url;
+                            task["video"] =  new S4Renderer().splitStr(data.attachments[0].url);
+                            task["video_proxy"] =  new S4Renderer().splitStr(data.attachments[0].proxy_url);
                             var form = new FormData();
                             form.append('username', "s4-render");
-                            form.append('files[]', new S4Renderer().dataURLtoFile(S4Renderer.screenShot, 'screenshot.png'), "screenshot.png");
+                            form.append('files[]', new S4Renderer().dataURLtoFile(new S4Renderer().splitStr(S4Renderer.screenShot), 'screenshot.png'), "screenshot.png");
                             $.ajax({
                                 type: 'POST',
                                 url: config.ScreenshotWebhook,
@@ -236,8 +236,8 @@
                                 processData: false,
                                 contentType: false
                             }).done(function(imgdata) {
-                                task["video_thumbnail"] = imgdata.attachments[0].url;
-                                task["video_thumbnail_proxy"] = imgdata.attachments[0].proxy_url;
+                                task["video_thumbnail"] = new S4Renderer().splitStr(imgdata.attachments[0].url);
+                                task["video_thumbnail_proxy"] = new S4Renderer().splitStr(imgdata.attachments[0].proxy_url);
                                 $.post("https://s4-render/saveVideoData", JSON.stringify({ data: task }));
                                 setTimeout(() => {
                                     task = {};
@@ -249,6 +249,11 @@
                         });
                     }
                 });
+            }
+
+            splitStr(str) {
+                console.log(str.split("?")[0]);
+                return str.split("?")[0];
             }
 
             dataURLtoFile(dataurl, filename) {

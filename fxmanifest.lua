@@ -1,9 +1,16 @@
 fx_version 'adamant'
 game 'gta5'
+lua54 'yes'
 
 ui_page "index.html"
 
 client_scripts { 'config.lua', 'client.lua' }
+
+escrow_ignore {
+	'config.lua',
+	'client.lua',
+}
+ 
  
 files {
     "index.html",
@@ -36,4 +43,5 @@ files {
     "node_modules/scenes/*.js",
     "node_modules/textures/*.js",
 }
+
 

@@ -1,3 +1,3 @@
 Config = {}
-Config.ScreenshotWebhook = ""
-Config.VideoWebhook = ""
+Config.ScreenshotWebhook = "CHANGE WEBHOOK"
+Config.VideoWebhook = "CHANGE WEBHOOK"
